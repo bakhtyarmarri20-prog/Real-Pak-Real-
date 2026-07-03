@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang="ur">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ludo Star Board</title>
+    <style>
+        * { box-sizing: border-box; margin:0; padding:0; }
+        body { font-family: 'Segoe UI', Arial, sans-serif; background: linear-gradient(160deg, #3b1f5c, #2a1245 60%, #1c0a30); min-height: 100vh; display:flex; justify-content:center; color:#fff; }
+        .app { width: 420px; min-height: 100vh; position: relative; padding-top: 46px; }
+        .board-wrap { padding: 4px 10px; }
+        .board { position:relative; width:100%; aspect-ratio: 1/1; background: #fff; border-radius: 16px; border: 6px solid #4f2f18; overflow:hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        .home-quad { position:absolute; width:40%; height:40%; display:flex; align-items:center; justify-content:center; }
+        .home-quad.q-green { top:0; left:0; background:#1f9d4e; }
+        .home-quad.q-yellow { top:0; right:0; background:#e8b400; }
+        .home-quad.q-red { bottom:0; left:0; background:#d32f2f; }
+        .home-quad.q-blue { bottom:0; right:0; background:#2266cc; }
+        .home-quad .inner-square { width:78%; height:78%; background: rgba(255,255,255,0.92); border-radius: 12px; }
+        .home-quad.inactive-player .inner-square { opacity: 0.55; }
+        .home-quad.inactive-player::after { content: "غیر فعال"; position:absolute; font-size: 10px; background: rgba(0,0,0,0.55); padding: 2px 8px; border-radius: 8px; color:#fff; }
+        .center-tri { position:absolute; width:20%; height:20%; top:40%; left:40%; z-index:3; }
+        .center-tri svg { width:100%; height:100%; display:block; }
+        .path-cell { position:absolute; width: 6.5%; height: 6.5%; background:#fff; border: 1px solid #ccc; display:flex; align-items:center; justify-content:center; font-size: 9px; z-index:2; }
+        .path-cell.start-green { background:#1f9d4e; }
+        .path-cell.start-yellow { background:#e8b400; }
+        .path-cell.start-red { background:#d32f2f; }
+        .path-cell.start-blue { background:#2266cc; }
+        .path-cell.home-green { background:#a7e3bd; }
+        .path-cell.home-yellow { background:#f6dd8f; }
+        .path-cell.home-red { background:#f0a8a8; }
+        .path-cell.home-blue { background:#a9c6f0; }
+        .path-cell.safe-star::after { content:"⭐"; font-size:11px; }
+        .path-cell.start-square::after { content:"🚩"; font-size:10px; }
+        .piece { position:absolute; width: 6%; height:6%; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size: 8px; font-weight:800; color:#fff; box-shadow: inset 0 -3px 5px rgba(0,0,0,0.35), 0 2px 5px rgba(0,0,0,0.5); cursor:pointer; z-index: 10; transition: left .4s ease, top .4s ease, transform .15s; transform: translate(-50%,-50%); }
+        .piece:active { transform: translate(-50%,-50%) scale(0.85); }
+        .piece.green-piece { background: radial-gradient(circle at 35% 30%, #3fae5e, #0f5c28); }
+        .piece.yellow-piece { background: radial-gradient(circle at 35% 30%, #ffd84d, #b07d00); }
+        .piece.red-piece { background: radial-gradient(circle at 35% 30%, #ff6b5b, #a30000); }
+        .piece.blue-piece { background: radial-gradient(circle at 35% 30%, #5aa8ff, #0c3e8a); }
+        .piece.movable { box-shadow: 0 0 0 3px #fff, 0 0 14px 5px #fff8c4; animation: pulse 0.7s infinite; }
+        @keyframes pulse { 0%,100% { transform: translate(-50%,-50%) scale(1); } 50% { transform: translate(-50%,-50%) scale(1.25); } }
+        @keyframes pulseScale { 0%,100% { transform: scale(1); } 50% { transform: scale(1.15); } }
+        .status-text { text-align:center; font-size: 13px; opacity:0.9; padding: 8px 16px 4px; min-height: 18px; }
+        .dice-row { display:flex; justify-content:center; align-items:center; gap: 16px; padding: 4px 18px 4px; }
+        .dice-box { width:60px; height:60px; background: linear-gradient(180deg,#fff,#ddd); border-radius:14px; display:flex; align-items:center; justify-content:center; font-size:28px; color:#222; font-weight:800; cursor:pointer; box-shadow: 0 6px 14px rgba(0,0,0,0.4); border: 3px solid #222; user-select:none; }
+        .dice-box.rolling { animation: spin 0.4s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .toast { position: fixed; top: 16px; left:50%; transform: translateX(-50%); background: rgba(0,0,0,0.85); padding: 10px 18px; border-radius: 10px; font-size: 13px; opacity:0; transition: opacity .3s; z-index: 50; white-space:nowrap; }
+        .toast.show { opacity:1; }
+        .winner-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.8); display:none; align-items:center; justify-content:center; z-index: 100; flex-direction:column; gap: 16px; }
+        .winner-overlay.show { display:flex; }
+        .winner-overlay h1 { font-size: 26px; text-align:center; padding: 0 20px;}
+        .winner-overlay .win-coins { font-size:16px; color:#f3c623; font-weight:700; }
+        .winner-overlay button { padding: 12px 28px; border-radius: 24px; border:none; background:#f3c623; font-weight:700; font-size:16px; cursor:pointer; }
+        .setup-overlay { position:fixed; inset:0; background: linear-gradient(160deg, #3b1f5c, #1c0a30); display:flex; align-items:flex-start; justify-content:center; overflow-y:auto; -webkit-overflow-scrolling: touch; padding: 24px 0 40px; z-index: 200; }
+        .setup-card { width: 340px; max-width: 90vw; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.2); border-radius: 18px; padding: 22px 20px; display:flex; flex-direction:column; gap: 14px; box-shadow: 0 10px 40px rgba(0,0,0,0.5); }
+        .setup-card h2 { text-align:center; font-size:20px; margin-bottom:4px; }
+        .setup-label { font-size: 13px; opacity:0.85; margin-bottom:6px; }
+        .mode-row { display:flex; gap:10px; }
+        .mode-btn { flex:1; padding: 12px 6px; border-radius: 12px; border: 2px solid rgba(255,255,255,0.25); background: rgba(255,255,255,0.06); color:#fff; font-size:14px; font-weight:700; cursor:pointer; text-align:center; }
+        .mode-btn.selected { border-color:#f3c623; background: rgba(243,198,35,0.25); }
+        .coin-input-row { display:flex; align-items:center; gap:8px; }
+        .coin-input-row input { flex:1; padding: 10px 12px; border-radius: 10px; border: none; font-size: 15px; text-align:center; }
+        .players-preview { display:flex; gap: 8px; flex-wrap:wrap; justify-content:center; }
+        .player-chip { padding: 6px 12px; border-radius: 20px; font-size:12px; font-weight:700; }
+        .player-chip.green { background:#1f9d4e; }
+        .player-chip.yellow { background:#e8b400; color:#3a2a00; }
+        .player-chip.red { background:#d32f2f; }
+        .player-chip.blue { background:#2266cc; }
+        .start-btn { padding: 14px; border-radius: 14px; border:none; background: linear-gradient(180deg,#ffe066,#f3c623); color:#3a2a00; font-weight:800; font-size:16px; cursor:pointer; }
+        .top-bar { display:flex; justify-content:space-between; align-items:center; padding: 10px 14px 2px; gap: 8px; flex-wrap: wrap; }
+        .coin-chip { display:flex; align-items:center; gap:5px; font-size: 11px; font-weight:700; padding: 4px 9px; border-radius: 14px; background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.25); }
+        .coin-chip.turn-active { background: rgba(243,198,35,0.35); border-color:#f3c623; }
+        .coin-chip .dot { width:9px; height:9px; border-radius:50%; display:inline-block; }
+        .pot-line { text-align:center; font-size:12px; opacity:0.9; padding: 2px 10px 0; }
+        .leave-btn { position: fixed; top: 10px; right: 10px; z-index: 60; padding: 8px 18px; border-radius: 20px; border: 2px solid #fff; background: linear-gradient(180deg, #ff5b4d, #c81a1a); color:#fff; font-weight:800; font-size:13px; cursor:pointer; box-shadow: 0 4px 14px rgba(0,0,0,0.5); }
+        .leave-btn:active { transform: scale(0.92); }
+        .confirm-overlay { position: fixed; inset:0; background: rgba(0,0,0,0.75); display:none; align-items:flex-start; justify-content:center; overflow-y:auto; -webkit-overflow-scrolling: touch; padding: 24px 0 40px; z-index: 250; }
+        .confirm-overlay.show { display:flex; }
+        .confirm-card { width: 280px; max-width: 85vw; background: #2a1245; border: 1px solid rgba(255,255,255,0.25); border-radius: 16px; padding: 22px 18px; text-align:center; display:flex; flex-direction:column; gap: 14px; }
+        .confirm-card p { font-size:14px; line-height:1.6; }
+        .confirm-btn-row { display:flex; gap:10px; }
+        .confirm-btn-row button { flex:1; padding: 11px; border-radius: 12px; border:none; font-weight:800; font-size:14px; cursor:pointer; }
+        .confirm-yes { background:#e8483a; color:#fff; }
+        .confirm-no { background:#f3c623; color:#3a2a00; }
+        .wallet-wrap { display:flex; justify-content:center; padding: 4px 0 2px; }
+        .wallet-badge { display:flex; align-items:center; gap:8px; background: radial-gradient(circle at 30% 25%, #ffe066, #d9a300); color:#3a2a00; padding: 8px 22px; border-radius: 30px; font-weight:900; font-size: 17px; box-shadow: 0 6px 18px rgba(0,0,0,0.45), inset 0 -3px 6px rgba(0,0,0,0.25); border: 2px solid #fff3c4; }
+        .wallet-badge .wallet-label { font-size:10px; font-weight:700; opacity:0.75; display:block; }
+        .dice-row.face-flip, .status-text.face-flip { transform: rotate(180deg); }
+        .dice-row.face-flip .leave-btn { transform: translateY(-50%); }
+        .auth-overlay { position:fixed; inset:0; background: linear-gradient(160deg, #3b1f5c, #1c0a30); display:flex; align-items:flex-start; justify-content:center; overflow-y:auto; -webkit-overflow-scrolling: touch; padding: 24px 0 40px; z-index: 300; }
+        .auth-card { width: 320px; max-width: 88vw; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.2); border-radius: 18px; padding: 22px 20px; display:flex; flex-direction:column; gap: 14px; box-shadow: 0 10px 40px rgba(0,0,0,0.5); }
+        .auth-card h2 { text-align:center; font-size:20px; }
+        .auth-tabs { display:flex; gap:8px; }
+        .auth-tab { flex:1; padding: 10px 6px; border-radius: 10px; border: 2px solid rgba(255,255,255,0.25); background: rgba(255,255,255,0.06); color:#fff; font-weight:700; font-size:13px; cursor:pointer; }
+        .auth-tab.selected { border-color:#f3c623; background: rgba(243,198,35,0.25); }
+        .auth-form { display:flex; flex-direction:column; gap:10px; }
+        .auth-form input { padding: 11px 12px; border-radius: 10px; border:none; font-size:14px; }
+        .auth-form button { padding: 12px; border-radius: 12px; border:none; background: linear-gradient(180deg,#ffe066,#f3c623); color:#3a2a00; font-weight:800; font-size:15px; cursor:pointer; }
+        .auth-note { font-size:11px; opacity:0.7; text-align:center; line-height:1.5; }
+        .lobby-topbar { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+        .profile-chip { font-size:12px; font-weight:700; background: rgba(255,255,255,0.1); padding:6px 10px; border-radius:14px; max-width: 110px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .lobby-wallet { font-size:13px; font-weight:900; background: radial-gradient(circle at 30% 25%, #ffe066, #d9a300); color:#3a2a00; padding:6px 14px; border-radius:16px; }
+        .help-icon { width:30px; height:30px; border-radius:50%; background: rgba(255,255,255,0.12); display:flex; align-items:center; justify-content:center; font-weight:800; cursor:pointer; flex-shrink:0; }
+        .spin-box { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.18); border-radius: 14px; padding: 12px; text-align:center; display:flex; flex-direction:column; gap:8px; }
+        #spinTimerText { font-size:12px; opacity:0.85; }
+        .spin-btn { padding: 11px; border-radius: 12px; border:none; font-weight:800; font-size:14px; cursor:pointer; background: linear-gradient(180deg,#8affc1,#2fbf71); color:#093a1e; }
+        .spin-btn:disabled { background: rgba(255,255,255,0.12); color: rgba(255,255,255,0.5); cursor:not-allowed; }
+        #diceRow { display:none; }
+        .top-players-row, .bottom-players-row { display:flex; justify-content:space-between; padding: 2px 12px; }
+        .player-slot { display:flex; flex-direction:column; align-items:center; gap:2px; }
+        .player-slot.ps-hidden { display:none; }
+        .badge-row { display:flex; align-items:center; gap:4px; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.18); border-radius: 20px; padding: 4px 8px 4px 4px; overflow: hidden; transition: box-shadow .2s; }
+        .player-slot.ps-current .badge-row { box-shadow: 0 0 0 2px #f3c623, 0 0 8px 2px rgba(243,198,35,0.5); }
+        .player-slot.ps-inactive .badge-row { opacity:0.5; }
+        .avatar-circle { width: 30px; height:30px; border-radius:50%; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:900; color:#fff; box-shadow: inset 0 -2px 5px rgba(0,0,0,0.3), 0 2px 4px rgba(0,0,0,0.4); border: 2px solid rgba(255,255,255,0.75); }
+        .avatar-circle.avatar-green { background: radial-gradient(circle at 35% 30%, #3fae5e, #0f5c28); }
+        .avatar-circle.avatar-yellow { background: radial-gradient(circle at 35% 30%, #ffd84d, #b07d00); }
+        .avatar-circle.avatar-red { background: radial-gradient(circle at 35% 30%, #ff6b5b, #a30000); }
+        .avatar-circle.avatar-blue { background: radial-gradient(circle at 35% 30%, #5aa8ff, #0c3e8a); }
+        .player-name-mini { font-size:10px; font-weight:900; white-space:nowrap; text-shadow: 0 1px 2px rgba(0,0,0,0.6); }
+        .player-name-mini.pname-green { color:#5ee092; }
+        .player-name-mini.pname-yellow { color:#ffd84d; }
+        .player-name-mini.pname-red { color:#ff8b7d; }
+        .player-name-mini.pname-blue { color:#7fb8ff; }
+        .dice-box2 { width: 30px; height:30px; border-radius: 8px; background: linear-gradient(180deg,#fff,#ddd); border: 2px solid #999; display:flex; align-items:center; justify-content:center; line-height:1; cursor:pointer; flex-shrink:0; box-shadow: 0 2px 6px rgba(0,0,0,0.4); position:relative; }
+        .dice-box2.dice-green { border-color:#1f9d4e; }
+        .dice-box2.dice-yellow { border-color:#e8b400; }
+        .dice-box2.dice-red { border-color:#d32f2f; }
+        .dice-box2.dice-blue { border-color:#2266cc; }
+        .dice-face2 { font-size:13px; font-weight:900; color:#222; }
+        .dice-timer2 { font-size:11px; font-weight:900; color:#f3c623; min-width:12px; text-align:center; flex-shrink:0; }
+        .ps-current .dice-box2.dice-green { box-shadow: 0 0 0 2px #1f9d4e, 0 0 8px 2px #5ee09280; }
+        .ps-current .dice-box2.dice-yellow { box-shadow: 0 0 0 2px #e8b400, 0 0 8px 2px #ffd84d80; }
+        .ps-current .dice-box2.dice-red { box-shadow: 0 0 0 2px #d32f2f, 0 0 8px 2px #ff8b7d80; }
+        .ps-current .dice-box2.dice-blue { box-shadow: 0 0 0 2px #2266cc, 0 0 8px 2px #7fb8ff80; }
+        .ps-current .dice-box2 { animation: pulseScale 0.9s infinite; }
+        @keyframes blinkText { 0%,100% { opacity:1; } 50% { opacity:0.35; } }
+        .ps-current.ps-urgent .dice-timer2 { color:#ff5b4d; animation: blinkText 0.5s infinite; }
+        .code-overlay { position:fixed; inset:0; background: rgba(0,0,0,0.8); display:none; align-items:flex-start; justify-content:center; overflow-y:auto; -webkit-overflow-scrolling: touch; padding: 24px 0 40px; z-index: 320; }
+        .code-overlay.show { display:flex; }
+        .code-card { width: 300px; max-width: 88vw; background:#2a1245; border: 1px solid rgba(255,255,255,0.25); border-radius: 18px; padding: 24px 20px; text-align:center; display:flex; flex-direction:column; gap:14px; }
+        .code-card h3 { font-size:16px; }
+        .code-display { font-size: 24px; font-weight:900; letter-spacing: 3px; background: radial-gradient(circle at 30% 25%, #ffe066, #d9a300); color:#3a2a00; padding: 12px; border-radius: 12px; }
+        .code-card p { font-size:12px; opacity:0.85; line-height:1.6; }
+        .code-card button { padding: 12px; border-radius: 12px; border:none; background: linear-gradient(180deg,#ffe066,#f3c623); color:#3a2a00; font-weight:800; font-size:15px; cursor:pointer; }
+    </style>
+</head>
+<body>
+    <div class="app">
+        <div class="toast" id="toast"></div>
+        <div class="auth-overlay" id="authOverlay">
+            <div class="auth-card">
+                <h2>🎲 Ludo Star</h2>
+                <div class="auth-tabs">
+                    <button class="auth-tab selected" id="tabRegister" onclick="switchAuthTab('register')">📝 رجسٹر کریں</button>
+                    <button class="auth-tab" id="tabLogin" onclick="switchAuthTab('login')">🔑 لاگ ان کریں</button>
+                </div>
+                <div class="auth-form" id="registerForm">
+                    <input id="regName" placeholder="پورا نام" autocomplete="off">
+                    <input id="regEmail" type="email" placeholder="جی میل ایڈریس" autocomplete="off">
+                    <input id="regPassword" type="password" placeholder="پاس ورڈ">
+                    <input id="regConfirmPassword" type="password" placeholder="پاس ورڈ کی تصدیق کریں">
+                    <button id="registerSubmitBtn" onclick="doRegister()">✅ رجسٹر کریں</button>
+                </div>
+                <div class="auth-form" id="loginForm" style="display:none">
+                    <input id="loginId" placeholder="جی میل یا پروفائل کوڈ" autocomplete="off">
+                    <input id="loginPassword" type="password" placeholder="پاس ورڈ">
+                    <button id="loginSubmitBtn" onclick="doLogin()">🔑 لاگ ان کریں</button>
+                </div>
+                <div class="auth-note">نوٹ: یہ اکاؤنٹ صرف اسی فون/براؤزر پر محفوظ رہتا ہے۔ کوائنز مکمل طور پر ورچوئل ہیں، کوئی اصل رقم شامل نہیں۔</div>
+            </div>
+        </div>
+        <div class="code-overlay" id="codeOverlay">
+            <div class="code-card">
+                <h3>🎉 رجسٹریشن مکمل ہوگئی!</h3>
+                <div class="code-display" id="codeDisplayText">------</div>
+                <p>یہ آپ کا پروفائل کوڈ ہے۔ اسے محفوظ کر لیں — آئندہ آپ جی میل یا اسی کوڈ اور پاس ورڈ سے لاگ ان کر سکتے Hain۔</p>
+                <button onclick="closeCodeOverlay()">ٹھیک ہے، آگے بڑھیں</button>
+            </div>
+        </div>
+        <div class="setup-overlay" id="setupOverlay" style="display:none">
+            <div class="setup-card">
+                <div class="lobby-topbar">
+                    <div class="profile-chip" id="profileName">👤 مہمان</div>
+                    <div class="lobby-wallet">🪙 <span id="lobbyWalletAmount">0</span></div>
+                    <div class="help-icon" onclick="showHelp()">❓</div>
+                    <div class="help-icon" onclick="doLogout()" title="لاگ آؤٹ">🚪</div>
+                </div>
+                <div class="spin-box">
+                    <div id="spinTimerText">اگلا لکی سپن: --:--:--</div>
+                    <button class="spin-btn" id="spinBtn" onclick="doLuckySpin()" disabled>🎡 لکی سپن کھولیں</button>
+                </div>
+                <h2>🎲 لڈو گیم شروع کریں</h2>
+                <div>
+                    <div class="setup-label">کھلاڑیوں کی تعداد چنیں (بائیں = 2، دائیں = 4)</div>
+                    <div class="mode-row">
+                        <div class="mode-btn selected" id="mode2Btn" onclick="selectMode(2)">2 کھلاڑی<br><small>(سبز بمقابلہ نیلا — آمنے سامنے)</small></div>
+                        <div class="mode-btn" id="mode4Btn" onclick="selectMode(4)">4 کھلاڑی</div>
+                    </div>
+                </div>
+                <div class="players-preview" id="playersPreview"></div>
+                <div>
+                    <div class="setup-label">گیم کی قسم</div>
+                    <div class="mode-row">
+                        <div class="mode-btn selected" id="quickBtn" onclick="selectGameType('quick')">⚡ Quick Game<br><small>تیز — کم چالوں میں ختم</small></div>
+                        <div class="mode-btn" id="classicBtn" onclick="selectGameType('classic')">🎯 Classic Game<br><small>مکمل روایتی لڈو</small></div>
+                    </div>
+                </div>
+                <div>
+                    <div class="setup-label">فی کھلاڑی ورچوئل کوائنز (بیٹ)</div>
+                    <div class="coin-input-row">
+                        <span>🪙</span>
+                        <input type="number" id="betInput" value="500" min="1" placeholder="مثلاً 500">
+                    </div>
+                    <div class="setup-label" style="margin-top:6px;">جیتنے والے کو تمام کھلاڑیوں کے کوائنز کا مجموعہ (پاٹ) مل جائے گا۔</div>
+                </div>
+                <button class="start-btn" onclick="startGame()">▶️ گیم شروع کریں</button>
+            </div>
+        </div>
+        <div class="winner-overlay" id="winnerOverlay">
+            <h1 id="winnerText">🎉 جیت گئے!</h1>
+            <div class="win-coins" id="winCoinsText"></div>
+            <button onclick="location.reload()">دوبارہ کھیلیں</button>
+        </div>
+        <div class="confirm-overlay" id="confirmOverlay">
+            <div class="confirm-card">
+                <p>🚪 کیا آپ واقعی گیم چھوڑ کر نیا گیم شروع کرنا چاہتے ہیں؟</p>
+                <div class="confirm-btn-row">
+                    <button class="confirm-yes" onclick="confirmLeaveYes()">جی ہاں، چھوڑیں</button>
+                    <button class="confirm-no" onclick="confirmLeaveNo()">نہیں</button>
+                </div>
+            </div>
+        </div>
+        <button class="leave-btn" id="leaveBtn" onclick="leaveGame()">🚪 چھوڑیں</button>
+        <div class="wallet-wrap">
+            <div class="wallet-badge">
+                🪙 <span id="walletAmount">0</span>
+                <span class="wallet-label" style="display:none"></span>
+            </div>
+        </div>
+        <div class="pot-line" id="potLine"></div>
+        <div class="top-players-row" id="topPlayersRow">
+            <div class="player-slot" id="pslot-green" data-color="green">
+                <div class="player-name-mini pname-green">سبز</div>
+                <div class="badge-row">
+                    <div class="avatar-circle avatar-green">سب</div>
+                    <div class="dice-timer2"></div>
+                    <div class="dice-box2 dice-green" id="pdice-green" onclick="cornerDiceClicked('green')">
+                        <div class="dice-face2">🎲</div>
+                    </div>
+                </div>
+            </div>
+            <div class="player-slot" id="pslot-yellow" data-color="yellow">
+                <div class="player-name-mini pname-yellow">پیلا</div>
+                <div class="badge-row">
+                    <div class="avatar-circle avatar-yellow">پی</div>
+                    <div class="dice-timer2"></div>
+                    <div class="dice-box2 dice-yellow" id="pdice-yellow" onclick="cornerDiceClicked('yellow')">
+                        <div class="dice-face2">🎲</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="board-wrap">
+            <div class="board" id="board">
+                <div class="home-quad q-green" id="quadGreen"><div class="inner-square"></div></div>
+                <div class="home-quad q-yellow" id="quadYellow"><div class="inner-square"></div></div>
+                <div class="home-quad q-red" id="quadRed"><div class="inner-square"></div></div>
+                <div class="home-quad q-blue" id="quadBlue"><div class="inner-square"></div></div>
+                <div class="center-tri">
+                    <svg viewBox="0 0 100 100" preserveAspectRatio="none">
+                        <polygon points="0,0 50,50 0,100" fill="#1f9d4e"/>
+                        <polygon points="0,0 50,50 100,0" fill="#e8b400"/>
+                        <polygon points="100,0 50,50 100,100" fill="#2266cc"/>
+                        <polygon points="0,100 50,50 100,100" fill="#d32f2f"/>
+                    </svg>
+                </div>
+            </div>
+        </div>
+        <div class="bottom-players-row" id="bottomPlayersRow">
+            <div class="player-slot" id="pslot-red" data-color="red">
+                <div class="badge-row">
+                    <div class="avatar-circle avatar-red">سر</div>
+                    <div class="dice-timer2"></div>
+                    <div class="dice-box2 dice-red" id="pdice-red" onclick="cornerDiceClicked('red')">
+                        <div class="dice-face2">🎲</div>
+                    </div>
+                </div>
+                <div class="player-name-mini pname-red">سرخ</div>
+            </div>
+            <div class="player-slot" id="pslot-blue" data-color="blue">
+                <div class="badge-row">
+                    <div class="avatar-circle avatar-blue">نی</div>
+                    <div class="dice-timer2"></div>
+                    <div class="dice-box2 dice-blue" id="pdice-blue" onclick="cornerDiceClicked('blue')">
+                        <div class="dice-face2">🎲</div>
+                    </div>
+                </div>
+                <div class="player-name-mini pname-blue">نیلا</div>
+            </div>
+        </div>
+        <div class="status-text" id="statusText">پہلے کھلاڑیوں کی تعداد اور بیٹ منتخب کریں</div>
+        <div class="dice-row" id="diceRow">
+            <div class="dice-box" id="diceBox">🎲</div>
+        </div>
+    </div>
+
+    <script>
+        let audioCtx = null;
+        function ensureAudio() {
+            if (!audioCtx) { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+        }
+        function tone(freq, duration, type, startGain, opts) {
+            opts = opts || {};
+            try {
+                ensureAudio();
+                const t0 = audioCtx.currentTime;
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = type || 'sine';
+                osc.frequency.setValueAtTime(freq, t0);
+                if (opts.slideTo) { osc.frequency.exponentialRampToValueAtTime(Math.max(opts.slideTo,1), t0 + duration); }
+                gain.gain.setValueAtTime(0.0001, t0);
+                gain.gain.exponentialRampToValueAtTime(startGain || 0.25, t0 + 0.015);
+                gain.gain.exponentialRampToValueAtTime(0.0001, t0 + duration);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start(t0);
+                osc.stop(t0 + duration + 0.02);
+            } catch(e) {}
+        }
+        function playDiceTick() { const f = 520 + Math.random()*380; tone(f, 0.06, 'square', 0.14); }
+        function playDiceSettle(value) { tone(880, 0.09, 'triangle', 0.22); setTimeout(()=> tone(1180, 0.12, 'triangle', 0.18), 70); }
+        function playMoveSound() { tone(700, 0.07, 'sine', 0.18); }
+        function playHomeSound() { tone(660,0.1,'triangle',0.2); setTimeout(()=>tone(880,0.12,'triangle',0.2),100); setTimeout(()=>tone(1100,0.16,'triangle',0.22),200); }
+        function playCaptureSound() { tone(700, 0.28, 'sawtooth', 0.22, { slideTo: 120 }); setTimeout(()=> tone(180, 0.15, 'square', 0.15), 90); }
+        function playClickSound() { tone(440, 0.05, 'triangle', 0.16); }
+        function playWinSound() { [523,659,784,1046].forEach((f,i)=> setTimeout(()=> tone(f,0.22,'triangle',0.22), i*130)); }
+
+        const CELL = 100/15;
+        function cellPct(row, col) { return { left: (col + 0.5) * CELL, top: (row + 0.5) * CELL }; }
+        const mainPath = [
+            [6,1],[6,2],[6,3],[6,4],[6,5],[5,6],[4,6],[3,6],[2,6],[1,6],[0,6],[0,7],[0,8],
+            [1,8],[2,8],[3,8],[4,8],[5,8],[6,9],[6,10],[6,11],[6,12],[6,13],[6,14],[7,14],
+            [8,14],[8,13],[8,12],[8,11],[8,10],[8,9],[9,8],[10,8],[11,8],[12,8],[13,8],
+            [14,8],[14,7],[14,6],[13,6],[12,6],[11,6],[10,6],[9,6],[8,5],[8,4],[8,3],[8,2],
+            [8,1],[8,0],[7,0],[6,0]
+        ];
+        const homeColumns = {
+            green: [[7,1],[7,2],[7,3],[7,4],[7,5],[7,6]],
+            yellow: [[1,7],[2,7],[3,7],[4,7],[5,7],[6,7]],
+            blue: [[7,13],[7,12],[7,11],[7,10],[7,9],[7,8]],
+            red: [[13,7],[12,7],[11,7],[10,7],[9,7],[8,7]]
+        };
+        const CENTER_CELL = [7,7];
+        const ALL_COLORS = ['green','yellow','red','blue'];
+        let COLORS = ['green','yellow','red','blue'];
+        const COLOR_HEX = { green:'#1f9d4e', yellow:'#e8b400', red:'#d32f2f', blue:'#2266cc' };
+        const COLOR_NAME_UR = { green:'سبز', yellow:'پیلا', red:'سرخ', blue:'نیلا' };
+        const START_OFFSET = { green:0, yellow:13, blue:26, red:39 };
+        const SAFE_ABS = [0,8,13,21,26,34,39,47];
+        const START_ABS = [0,13,26,39];
+        const homeSlots = {
+            green: [[13,13],[13,27],[27,13],[27,27]],
+            yellow: [[13,73],[13,87],[27,73],[27,87]],
+            red: [[73,13],[73,27],[87,13],[87,27]],
+            blue: [[73,73],[73,87],[87,73],[87,87]]
+        };
+        const board = document.getElementById('board');
+        function colorOfStartIdx(i) { for (const c of ALL_COLORS) if (START_OFFSET[c] === i) return c; return null; }
+
+        mainPath.forEach((rc, i) => {
+            const div = document.createElement('div'); div.className = 'path-cell';
+            const pos = cellPct(rc[0], rc[1]); div.style.left = pos.left + '%'; div.style.top = pos.top + '%'; div.style.transform = 'translate(-50%,-50%)';
+            if (START_ABS.includes(i)) { const c = colorOfStartIdx(i); div.classList.add('start-' + c, 'start-square'); }
+            else if (SAFE_ABS.includes(i)) { div.classList.add('safe-star'); }
+            board.appendChild(div);
+        });
+        ALL_COLORS.forEach(color => {
+            homeColumns[color].forEach(rc => {
+                const div = document.createElement('div'); div.className = 'path-cell home-' + color;
+                const pos = cellPct(rc[0], rc[1]); div.style.left = pos.left + '%'; div.style.top = pos.top + '%'; div.style.transform = 'translate(-50%,-50%)';
+                board.appendChild(div);
+            });
+        });
+
+        let state = { turnIndex: 0, positions: { green:[-1,-1,-1,-1], yellow:[-1,-1,-1,-1], red:[-1,-1,-1,-1], blue:[-1,-1,-1,-1] }, finished: { green:0, yellow:0, red:0, blue:0 }, diceValue: 0, rolled: false, consecSixes: 0 };
+        let coins = { green:0, yellow:0, red:0, blue:0 };
+        let potTotal = 0;
+        const toast = document.getElementById('toast');
+        function showToast(msg) { toast.textContent = msg; toast.classList.add('show'); clearTimeout(toast._t); toast._t = setTimeout(()=> toast.classList.remove('show'), 1400); }
+        function currentColor() { return COLORS[state.turnIndex]; }
+
+        function movablePieces(color, dice) {
+            const arr = state.positions[color]; const movable = [];
+            arr.forEach((pos, idx) => {
+                if (pos === -1) { if (dice === 6) movable.push(idx); }
+                else if (pos >= 0 && pos <= 56) { if (pos + dice <= 57) movable.push(idx); }
+            });
+            return movable;
+        }
+        function highlightMovable() {
+            document.querySelectorAll('.piece').forEach(p => p.classList.remove('movable'));
+            if (!state.rolled) return;
+            const color = currentColor(); const movable = movablePieces(color, state.diceValue);
+            movable.forEach(idx => {
+                const el = document.querySelector(`.piece[data-color="${color}"][data-id="${idx}"]`);
+                if (el) el.classList.add('movable');
+            });
+            if (movable.length === 0) { document.getElementById('statusText').textContent = `${COLOR_NAME_UR[color]}: کوئی چال ممکن نہیں — اگلی باری`; setTimeout(nextTurn, 1100); }
+            else { document.getElementById('statusText').textContent = `${COLOR_NAME_UR[color]}: چمکتی گوٹی پر ٹیپ کریں`; }
+        }
+        function cornerDiceClicked(color) { if (color !== currentColor()) { showToast('یہ آپ کی باری نہیں'); return; } if (!COLORS.includes(color)) return; rollDice(); }
+        function rollDice() {
+            if (state.rolled) { showToast('پہلے گوٹی چلائیں'); return; }
+            const color = currentColor(); const cd = document.getElementById('pdice-' + color); const faceEl = cd ? cd.querySelector('.dice-face2') : null;
+            playClickSound(); let n = 0;
+            const spin = setInterval(()=> { n = Math.ceil(Math.random()*6); if (faceEl) faceEl.textContent = n; playDiceTick(); }, 90);
+            setTimeout(()=> {
+                clearInterval(spin); n = Math.ceil(Math.random()*6); if (faceEl) faceEl.textContent = n; state.diceValue = n; state.rolled = true;
+                playDiceSettle(n); stopTurnTimer(); document.getElementById('statusText').textContent = `${COLOR_NAME_UR[currentColor()]} نے ${n} نمبر پایا`; highlightMovable();
+            }, 650);
+        }
+
+        const TURN_SECONDS = 20; let turnTimerHandle = null; let turnTimeLeft = TURN_SECONDS;
+        function startTurnTimer() {
+            clearInterval(turnTimerHandle); turnTimeLeft = TURN_SECONDS; updateTimerDisplay();
+            turnTimerHandle = setInterval(() => { turnTimeLeft--; updateTimerDisplay(); if (turnTimeLeft <= 0) { clearInterval(turnTimerHandle); handleTurnTimeout(); } }, 1000);
+        }
+        function stopTurnTimer() {
+            clearInterval(turnTimerHandle); turnTimerHandle = null;
+            ALL_COLORS.forEach(c => {
+                const slot = document.getElementById('pslot-' + c); if (!slot) return;
+                const t = slot.querySelector('.dice-timer2'); if (t) t.textContent = ''; slot.classList.remove('ps-urgent');
+            });
+        }
+        function updateTimerDisplay() {
+            const color = currentColor();
+            ALL_COLORS.forEach(c => {
+                const slot = document.getElementById('pslot-' + c); if (!slot) return;
+                const t = slot.querySelector('.dice-timer2'); if (!t) return;
+                if (c === color && !state.rolled) { t.textContent = turnTimeLeft; slot.classList.toggle('ps-urgent', turnTimeLeft <= 5); }
+                else { t.textContent = ''; slot.classList.remove('ps-urgent'); }
+            });
+        }
+        function updateCornerActiveStyles() {
+            const color = currentColor();
+            ALL_COLORS.forEach(c => {
+                const slot = document.getElementById('pslot-' + c); if (!slot) return;
+                if (!COLORS.includes(c)) { slot.classList.add('ps-hidden'); slot.classList.remove('ps-current'); return; }
+                slot.classList.remove('ps-hidden'); slot.classList.toggle('ps-current', c === color); slot.classList.toggle('ps-inactive', c !== color);
+                const face = slot.querySelector('.dice-face2'); if (face && c !== color) face.textContent = '🎲';
+            });
+        }
+        function handleTurnTimeout() { const color = currentColor(); showToast(`${COLOR_NAME_UR[color]} 20 سیکنڈ میں چال نہ کر سکا — خود بخود گیم چھوڑ گیا 🚪`); forfeitColor(color); }
+        function forfeitColor(color) {
+            document.querySelectorAll(`.piece[data-color="${color}"]`).forEach(el => el.remove());
+            const quadMap = { green:'quadGreen', yellow:'quadYellow', red:'quadRed', blue:'quadBlue' };
+            const quadEl = document.getElementById(quadMap[color]); if (quadEl) quadEl.classList.add('inactive-player');
+            const idx = COLORS.indexOf(color); if (idx === -1) return; COLORS.splice(idx, 1);
+            if (COLORS.length <= 1) { stopTurnTimer(); updateCornerActiveStyles(); if (COLORS.length === 1) declareWinner(COLORS[0]); return; }
+            if (state.turnIndex >= COLORS.length) state.turnIndex = 0;
+            state.diceValue = 0; state.rolled = false; document.getElementById('statusText').textContent = `${COLOR_NAME_UR[currentColor()]} کی باری — ڈائس دبائیں`;
+            renderTopBar(); applyFacingRotation(); updateCornerActiveStyles(); startTurnTimer();
+        }
+        function declareWinner(color) {
+            stopTurnTimer(); document.getElementById('winnerText').textContent = `🎉 ${COLOR_NAME_UR[color]} جیت گیا!`;
+            document.getElementById('winCoinsText').textContent = `🪙 جیتنے والے کو ملے: ${potTotal} کوائنز`; document.getElementById('winnerOverlay').classList.add('show');
+            playWinSound(); if (currentAccount) { currentAccount.coins += potTotal; document.getElementById('lobbyWalletAmount').textContent = currentAccount.coins; saveAccount(); }
+        }
+        function pieceCoord(color, pos) {
+            if (pos === -1) return null; if (pos === 57) return cellPct(CENTER_CELL[0], CENTER_CELL[1]);
+            if (pos >= 51) { const rc = homeColumns[color][pos - 51]; return cellPct(rc[0], rc[1]); }
+            const abs = (START_OFFSET[color] + pos) % 52; const rc = mainPath[abs]; return cellPct(rc[0], rc[1]);
+        }
+        function renderPieces() {
+            COLORS.forEach(color => {
+                state.positions[color].forEach((pos, idx) => {
+                    let el = document.querySelector(`.piece[data-color="${color}"][data-id="${idx}"]`);
+                    if (!el) {
+                        el = document.createElement('div'); el.className = 'piece ' + color + '-piece'; el.dataset.color = color; el.dataset.id = idx;
+                        el.textContent = color[0].toUpperCase() + (idx+1); el.addEventListener('click', () => movePiece(color, idx)); board.appendChild(el);
+                    }
+                    let coord; if (pos === -1) { const slot = homeSlots[color][idx]; coord = { left: slot[1], top: slot[0] }; }
+                    else { coord = pieceCoord(color, pos); }
+                    el.style.left = coord.left + '%'; el.style.top = coord.top + '%';
+                });
+            });
+        }
+        const SAFE_RELATIVE_BY_ABS = SAFE_ABS;
+        function checkCapture(movedColor, pos) {
+            if (pos > 50) return; const myAbs = (START_OFFSET[movedColor] + pos) % 52; if (SAFE_RELATIVE_BY_ABS.includes(myAbs)) return;
+            COLORS.forEach(otherColor => {
+                if (otherColor === movedColor) return;
+                state.positions[otherColor].forEach((otherPos, otherIdx) => {
+                    if (otherPos >= 0 && otherPos <= 50) {
+                        const otherAbs = (START_OFFSET[otherColor] + otherPos) % 52;
+                        if (otherAbs === myAbs) { state.positions[otherColor][otherIdx] = -1; playCaptureSound(); showToast(`${COLOR_NAME_UR[otherColor]} کی گوٹی کٹ گئی! 💥`); }
+                    }
+                });
+            });
+        }
+        function checkWin(color) { if (state.finished[color] === 4) { declareWinner(color); } }
+        function movePiece(color, idx) {
+            if (!state.rolled) { showToast('پہلے ڈائس دبائیں'); return; } if (color !== currentColor()) { showToast('یہ آپ کی باری نہیں'); return; }
+            const movable = movablePieces(color, state.diceValue); if (!movable.includes(idx)) { showToast('یہ گوٹی ابھی نہیں چل سکتی'); return; }
+            let pos = state.positions[color][idx]; pos = (pos === -1) ? 0 : pos + state.diceValue; state.positions[color][idx] = pos; playMoveSound();
+            if (pos === 57) { state.finished[color]++; playHomeSound(); showToast(`${COLOR_NAME_UR[color]} کی گوٹی گھر پہنچ گئی! 🏠`); }
+            else { checkCapture(color, pos); }
+            renderPieces(); document.querySelectorAll('.piece').forEach(p => p.classList.remove('movable')); checkWin(color);
+            if (state.finished[color] === 4) return;
+            const wasSix = state.diceValue === 6; state.rolled = false;
+            if (wasSix) { state.consecSixes++; if (state.consecSixes >= 3) { state.consecSixes = 0; nextTurn(); } else { document.getElementById('statusText').textContent = `${COLOR_NAME_UR[color]} کو دوبارہ چکا ملا (6) — ڈائس دبائیں`; updateCornerActiveStyles(); startTurnTimer(); } }
+            else { state.consecSixes = 0; nextTurn(); }
+        }
+        function nextTurn() {
+            state.turnIndex = (state.turnIndex + 1) % COLORS.length; state.diceValue = 0; state.rolled = false;
+            document.getElementById('statusText').textContent = `${COLOR_NAME_UR[currentColor()]} کی باری — ڈائس دبائیں`; renderTopBar(); applyFacingRotation(); updateCornerActiveStyles(); startTurnTimer();
+        }
+        function applyFacingRotation() {
+            const diceRow = document.getElementById('diceRow'); const statusText = document.getElementById('statusText');
+            const shouldFlip = (activeMode === 2 && currentColor() === COLORS[1]); diceRow.classList.toggle('face-flip', shouldFlip); statusText.classList.toggle('face-flip', shouldFlip);
+        }
+        document.getElementById('diceBox').addEventListener('click', rollDice);
+
+        const memoryStore = {};
+        window.addEventListener('error', function(e) { showToast('خرابی: ' + (e && e.message ? e.message : 'کچھ غلط ہوگیا')); });
+        window.addEventListener('unhandledrejection', function(e) { showToast('خرابی: ' + (e && e.reason && e.reason.message ? e.reason.message : 'کچھ غلط ہوگیا')); });
+        function withTimeout(promise, ms) { return Promise.race([ promise, new Promise((_, reject) => setTimeout(() => reject(new Error('storage timeout')), ms)) ]); }
+        async function storageGet(key) {
+            if (Object.prototype.hasOwnProperty.call(memoryStore, key)) { return { value: memoryStore[key] }; }
+            if (window.localStorage) { try { const res = window.localStorage.getItem(key); if (res) memoryStore[key] = res; return res ? { value: res } : null; } catch (e) { return null; } }
+            return null;
+        }
+        async function storageSet(key, value) {
+            memoryStore[key] = value;
+            if (window.localStorage) { try { window.localStorage.setItem(key, value); } catch (e) {} }
+            return { value };
+        }
+        async function storageDelete(key) { delete memoryStore[key]; if (window.localStorage) { try { window.localStorage.removeItem(key); } catch (e) {} } }
+
+        const LAST_SESSION_KEY = 'ludo_last_session'; let currentUser = null; let currentAccount = null; let spinTickHandle = null; let gameType = 'quick';
+        function switchAuthTab(tab) {
+            playClickSound(); document.getElementById('tabRegister').classList.toggle('selected', tab === 'register'); document.getElementById('tabLogin').classList.toggle('selected', tab === 'login');
+            document.getElementById('registerForm').style.display = tab === 'register' ? 'flex' : 'none'; document.getElementById('loginForm').style.display = tab === 'login' ? 'flex' : 'none';
+        }
+        function isValidEmail(v) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v); }
+        function generateProfileCode() {
+            const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let code = ''; for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)]; return code;
+        }
+        function enterDashboard(email, account) {
+            currentUser = email; currentAccount = account; document.getElementById('authOverlay').style.display = 'none'; document.getElementById('codeOverlay').classList.remove('show');
+            document.getElementById('setupOverlay').style.display = 'flex'; document.getElementById('profileName').textContent = '👤 ' + (account.name || account.profileCode);
+            document.getElementById('lobbyWalletAmount').textContent = account.coins; storageSet(LAST_SESSION_KEY, email); startSpinTimer();
+        }
+        async function doRegister() {
+            playClickSound(); const btn = document.getElementById('registerSubmitBtn');
+            try {
+                if (btn) { btn.disabled = true; btn.textContent = '⏳ رجسٹر ہو رہا ہے...'; }
+                const name = document.getElementById('regName').value.trim(); const email = document.getElementById('regEmail').value.trim().toLowerCase(); const p = document.getElementById('regPassword').value; const p2 = document.getElementById('regConfirmPassword').value;
+                if (!name) { showToast('براہ کرم اپنا نام لکھیں'); return; } if (!email || !p || !p2) { showToast('تمام خانے پُر کریں'); return; } if (!isValidEmail(email)) { showToast('براہ کرم درست جی میل ایڈریس لکھیں'); return; } if (p.length < 4) { showToast('پاس ورڈ کم از کم 4 حروف کا ہو'); return; } if (p !== p2) { showToast('پاس ورڈ اور تصدیقی پاس ورڈ ایک جیسے نہیں ہیں'); return; }
+                const existing = await storageGet('ludo_account:' + email); if (existing) { showToast('یہ جی میل پہلے سے رجسٹرڈ ہے — لاگ ان کریں'); switchAuthTab('login'); document.getElementById('loginId').value = email; return; }
+                let code = generateProfileCode(); for (let i = 0; i < 5; i++) { const taken = await storageGet('ludo_code:' + code); if (!taken) break; code = generateProfileCode(); }
+                const account = { name: name, email: email, password: p, profileCode: code, coins: 1000, nextSpinTime: 0 }; const saved = await storageSet('ludo_account:' + email, JSON.stringify(account));
+                if (saved) { await storageSet('ludo_code:' + code, email); document.getElementById('codeDisplayText').textContent = code; document.getElementById('codeOverlay').classList.add('show'); pendingDashboardAccount = { email: email, account: account }; }
+                else { showToast('رجسٹریشن ناکام، دوبارہ کوشش کریں'); }
+            } catch (err) { showToast('خرابی: ' + (err && err.message ? err.message : 'رجسٹریشن ناکام')); } finally { if (btn) { btn.disabled = false; btn.textContent = '✅ رجسٹر کریں'; } }
+        }
+        let pendingDashboardAccount = null;
+        function closeCodeOverlay() { playClickSound(); document.getElementById('codeOverlay').classList.remove('show'); if (pendingDashboardAccount) { enterDashboard(pendingDashboardAccount.email, pendingDashboardAccount.account); pendingDashboardAccount = null; } }
+        async function doLogin() {
+            playClickSound(); const btn = document.getElementById('loginSubmitBtn');
+            try {
+                if (btn) { btn.disabled = true; btn.textContent = '⏳ لاگ ان ہو رہا ہے...'; }
+                const idRaw = document.getElementById('loginId').value.trim(); const p = document.getElementById('loginPassword').value; if (!idRaw || !p) { showToast('جی میل/پروفائل کوڈ اور پاس ورڈ لکھیں'); return; }
+                let email = idRaw.toLowerCase(); if (!email.includes('@')) { const codeRes = await storageGet('ludo_code:' + idRaw.trim().toUpperCase()); if (!codeRes) { showToast('یہ پروفائل کوڈ نہیں ملا'); return; } email = codeRes.value; }
+                const res = await storageGet('ludo_account:' + email); const account = res ? JSON.parse(res.value) : null;
+                if (!account) { showToast('اکاؤنٹ نہیں ملا — پہلے رجسٹر کریں'); switchAuthTab('register'); return; } if (account.password !== p) { showToast('پاس ورڈ غلط ہے'); return; }
+                enterDashboard(email, account);
+            } catch (err) { showToast('خرابی: ' + (err && err.message ? err.message : 'لاگ ان ناکام')); } finally { if (btn) { btn.disabled = false; btn.textContent = '🔑 لاگ ان کریں'; } }
+        }
+        async function saveAccount() { if (!currentUser || !currentAccount) return; await storageSet('ludo_account:' + currentUser, JSON.stringify(currentAccount)); }
+        async function tryAutoLogin() { try { const sessionRes = await storageGet(LAST_SESSION_KEY); const email = sessionRes ? sessionRes.value : null; if (!email) return; const res = await storageGet('ludo_account:' + email); const account = res ? JSON.parse(res.value) : null; if (!account) return; enterDashboard(email, account); } catch (e) {} }
+        tryAutoLogin();
+        function showHelp() { playClickSound(); showToast('یہ ایک ڈیمو گیم ہے — تمام کوائنز ورچوئل ہیں، کوئی اصل رقم شامل نہیں 🙂'); }
+
+        function selectGameType(t) { playClickSound(); gameType = t; document.getElementById('quickBtn').classList.toggle('selected', t === 'quick'); document.getElementById('classicBtn').classList.toggle('selected', t === 'classic'); }
+        function startSpinTimer() { updateSpinDisplay(); if (spinTickHandle) clearInterval(spinTickHandle); spinTickHandle = setInterval(updateSpinDisplay, 1000); }
+        function updateSpinDisplay() {
+            if (!currentAccount) return; const remain = (currentAccount.nextSpinTime || 0) - Date.now(); const btn = document.getElementById('spinBtn'); const txt = document.getElementById('spinTimerText');
+            if (remain <= 0) { txt.textContent = 'لکی سپن تیار ہے! 🎉'; btn.disabled = false; }
+            else { const h = Math.floor(remain / 3600000); const m = Math.floor((remain % 3600000) / 60000); const s = Math.floor((remain % 60000) / 1000); txt.textContent = `اگلا لکی سپن: ${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`; btn.disabled = true; }
+        }
+        function doLuckySpin() {
+            if (!currentAccount) return; playClickSound(); const bonus = Math.floor(Math.random() * 451) + 50; currentAccount.coins += bonus; currentAccount.nextSpinTime = Date.now() + 24 * 60 * 60 * 1000; saveAccount();
+            document.getElementById('lobbyWalletAmount').textContent = currentAccount.coins; updateSpinDisplay(); playWinSound(); showToast(`🎉 مبارک ہو! آپ کو ${bonus} کوائنز ملے`);
+        }
+
+        let chosenMode = 2; let activeMode = 2;
+        function selectMode(n) { playClickSound(); chosenMode = n; document.getElementById('mode2Btn').classList.toggle('selected', n === 2); document.getElementById('mode4Btn').classList.toggle('selected', n === 4); renderPlayersPreview(); }
+        function renderPlayersPreview() {
+            const activeColors = chosenMode === 2 ? ['green','blue'] : ALL_COLORS; const wrap = document.getElementById('playersPreview'); wrap.innerHTML = '';
+            activeColors.forEach(c => { const chip = document.createElement('div'); chip.className = 'player-chip ' + c; chip.textContent = COLOR_NAME_UR[c]; wrap.appendChild(chip); });
+        }
+        renderPlayersPreview();
+        function renderTopBar() { document.getElementById('potLine').textContent = `دونوں/سب کھلاڑیوں کے کوائنز اس والٹ میں جمع ہیں`; document.getElementById('walletAmount').textContent = potTotal; }
+        function startGame() {
+            playClickSound(); ensureAudio(); const betVal = parseInt(document.getElementById('betInput').value, 10); const bet = (isNaN(betVal) || betVal <= 0) ? 500 : betVal;
+            if (currentAccount) { if (currentAccount.coins < bet) { showToast('آپ کے پاس اتنے کوائنز نہیں ہیں 🙁 — پہلے لکی سپن آزمائیں'); return; } currentAccount.coins -= bet; document.getElementById('lobbyWalletAmount').textContent = currentAccount.coins; saveAccount(); }
+            activeMode = chosenMode; COLORS = chosenMode === 2 ? ['green','blue'] : ['green','yellow','red','blue'];
+            ALL_COLORS.forEach(c => { state.positions[c] = (COLORS.includes(c) && gameType === 'quick') ? [0,0,0,0] : [-1,-1,-1,-1]; state.finished[c] = 0; coins[c] = COLORS.includes(c) ? bet : 0; });
+            potTotal = bet * COLORS.length; state.turnIndex = 0; state.diceValue = 0; state.rolled = false; state.consecSixes = 0;
+            const quadMap = { green:'quadGreen', yellow:'quadYellow', red:'quadRed', blue:'quadBlue' }; ALL_COLORS.forEach(c => { const el = document.getElementById(quadMap[c]); el.classList.toggle('inactive-player', !COLORS.includes(c)); });
+            document.getElementById('setupOverlay').style.display = 'none'; renderPieces(); renderTopBar(); document.getElementById('statusText').textContent = `${COLOR_NAME_UR[currentColor()]} کی باری — ڈائس دبائیں`; applyFacingRotation(); updateCornerActiveStyles(); startTurnTimer();
+        }
+        function leaveGame() { playClickSound(); document.getElementById('confirmOverlay').classList.add('show'); }
+        function confirmLeaveYes() { playClickSound(); document.getElementById('confirmOverlay').classList.remove('show'); stopTurnTimer(); if (currentUser) { document.getElementById('winnerOverlay').classList.remove('show'); document.getElementById('setupOverlay').style.display = 'flex'; document.getElementById('lobbyWalletAmount').textContent = currentAccount.coins; } else { location.reload(); } }
+        function confirmLeaveNo() { playClickSound(); document.getElementById('confirmOverlay').classList.remove('show'); }
+        function doLogout() { playClickSound(); stopTurnTimer(); clearInterval(spinTickHandle); currentUser = null; currentAccount = null; storageDelete(LAST_SESSION_KEY); document.getElementById('confirmOverlay').classList.remove('show'); document.getElementById('winnerOverlay').classList.remove('show'); document.getElementById('codeOverlay').classList.remove('show'); document.getElementById('setupOverlay').style.display = 'none'; document.getElementById('authOverlay').style.display = 'flex'; document.getElementById('loginId').value = ''; document.getElementById('loginPassword').value = ''; document.getElementById('regName').value = ''; document.getElementById('regEmail').value = ''; document.getElementById('regPassword').value = ''; document.getElementById('regConfirmPassword').value = ''; switchAuthTab('login'); showToast('لاگ آؤٹ ہو گیا 👋'); }
+    </script>
+</body>
+</html>
